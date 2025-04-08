@@ -7,7 +7,7 @@ function Layout() {
   return (
     <div className="flex flex-row">
       <NavBar name={user?.name || "Guest"} avatar={user?.avatar || ""} />
-      <main className="p-4 w-full">
+      <main className="p-4 w-full h-screen overflow-hidden">
         <Outlet />
       </main>
     </div>

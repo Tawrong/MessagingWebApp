@@ -2,3 +2,17 @@
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
 }
+
+/* styles/globals.css */
+.no-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.no-scrollbar::-webkit-scrollbar-button {
+  display: none; /* Hides arrows */
+}
+
+.no-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
