@@ -1,24 +1,97 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-
+import { useUser } from "../context/useUser";
 function LoginForm() {
   const [isLogin, setIsLogin] = useState(true); // Toggle between login and signup
   const navigate = useNavigate();
-
+  const { setUser } = useUser();
+  const apiUrl = import.meta.env.VITE_BACKEND_URL; // Use the environment variable for the backend URL
   const handleToggle = () => {
     setIsLogin(!isLogin);
   };
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (isLogin) {
-      // Handle login logic
-      console.log("Logging in...");
-    } else {
-      // Handle signup logic
-      console.log("Signing up...");
+    console.log("Backend URL:", apiUrl); // Log the backend URL for debugging
+    const formData = new FormData(event.target as HTMLFormElement);
+    const data = Object.fromEntries(formData.entries());
+
+    try {
+      if (isLogin) {
+        // Handle login logic
+        const response = await fetch(
+          `${import.meta.env.VITE_BACKEND_URL}/api/auth/login`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              email: data.email,
+              password: data.password,
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => null);
+          throw new Error(
+            errorData?.message || "Login failed. Please check your credentials."
+          );
+        }
+
+        const result = await response.json();
+        console.log("Login successful:", result);
+
+        // Set user data in context
+        setUser(result.user);
+
+        // Navigate to the private chats page
+        navigate("/PrivateChats");
+      } else {
+        // Handle signup logic
+        const response = await fetch(
+          `${import.meta.env.VITE_BACKEND_URL}/api/auth/register`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              username: data.username, // Include the username field
+              name: data.name,
+              email: data.email,
+              password: data.password,
+              avatar: data.avatar || undefined, // Optional avatar field
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => null); // Handle non-JSON responses
+          throw new Error(
+            errorData?.message || "Signup failed. Please try again."
+          );
+        }
+
+        const result = await response.json();
+        console.log("Signup successful:", result);
+
+        // Set user data in context
+        setUser(result.user);
+
+        // Automatically log in the user after signup
+        navigate("/PrivateChats");
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      if (error instanceof Error) {
+        alert(error.message);
+      } else {
+        alert("An unknown error occurred.");
+      }
     }
-    navigate("/PrivateChats");
+    console.log("Form data submitted:", data); // Log the form data for debugging
   };
 
   return (
@@ -28,6 +101,40 @@ function LoginForm() {
           {isLogin ? "Login" : "Sign Up"}
         </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {!isLogin && (
+            <div>
+              <label
+                htmlFor="name"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Name:
+              </label>
+              <input
+                type="text"
+                id="name"
+                name="name"
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          )}
+          {!isLogin && (
+            <div>
+              <label
+                htmlFor="username"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Username:
+              </label>
+              <input
+                type="text"
+                id="username"
+                name="username"
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          )}
           <div>
             <label
               htmlFor="email"

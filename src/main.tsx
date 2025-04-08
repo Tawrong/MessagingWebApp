@@ -8,7 +8,8 @@ import ChatMessages from './pages/ChatMessages.tsx'
 import GlobalChats from './pages/GlobalChats.tsx'
 import GroupMessages from './pages/GroupMessages.tsx'
 import Layout from './components/Layout.tsx'
-
+import { UserProvider } from './context/UserProvider.tsx'
+import ProfileSettings from './pages/ProfileSettings.tsx'
 
 const router = createBrowserRouter([
   {
@@ -31,6 +32,10 @@ const router = createBrowserRouter([
       {
         path: '/GroupChats',
         element: <GroupMessages />
+      },
+      {
+        path: '/ProfileSettings',
+        element: <ProfileSettings />
       }
     ]
   }
@@ -38,6 +43,8 @@ const router = createBrowserRouter([
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
+    <UserProvider>
     <RouterProvider router={router}/>
+    </UserProvider>
   </StrictMode>,
 )
