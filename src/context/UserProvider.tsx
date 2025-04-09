@@ -2,43 +2,46 @@
 import { createContext, useState, useEffect, ReactNode } from "react";
 
 interface User {
-    id: string;
-    name: string;
-    email: string;
-    avatar: string;
+  id: string;
+  username: string;
+  name: string;
+  email: string;
+  avatar: string;
 }
 
 interface UserContextType {
-    user: User | null;
-    setUser: (user: User | null) => void;
+  user: User | null;
+  setUser: (user: User | null) => void;
 }
 
-export const UserContext = createContext<UserContextType | undefined>(undefined);
+export const UserContext = createContext<UserContextType | undefined>(
+  undefined
+);
 
 export const UserProvider = ({ children }: { children: ReactNode }) => {
-    const [user, setUserState] = useState<User | null>(null);
+  const [user, setUserState] = useState<User | null>(null);
 
-    // Save user to localStorage whenever it changes
-    const setUser = (user: User | null) => {
-        setUserState(user);
-        if (user) {
-            localStorage.setItem("user", JSON.stringify(user));
-        } else {
-            localStorage.removeItem("user");
-        }
-    };
+  // Save user to localStorage whenever it changes
+  const setUser = (user: User | null) => {
+    setUserState(user);
+    if (user) {
+      localStorage.setItem("user", JSON.stringify(user));
+    } else {
+      localStorage.removeItem("user");
+    }
+  };
 
-    // Load user from localStorage when the app initializes
-    useEffect(() => {
-        const storedUser = localStorage.getItem("user");
-        if (storedUser) {
-            setUserState(JSON.parse(storedUser));
-        }
-    }, []);
+  // Load user from localStorage when the app initializes
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      setUserState(JSON.parse(storedUser));
+    }
+  }, []);
 
-    return (
-        <UserContext.Provider value={{ user, setUser }}>
-            {children}
-        </UserContext.Provider>
-    );
+  return (
+    <UserContext.Provider value={{ user, setUser }}>
+      {children}
+    </UserContext.Provider>
+  );
 };

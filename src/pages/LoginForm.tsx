@@ -45,7 +45,7 @@ function LoginForm() {
 
         // Set user data in context
         setUser(result.user);
-
+        console.log("User data set in context:", result.user);
         // Navigate to the private chats page
         navigate("/PrivateChats");
       } else {
@@ -58,6 +58,7 @@ function LoginForm() {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
+              id: data.id,
               username: data.username, // Include the username field
               name: data.name,
               email: data.email,

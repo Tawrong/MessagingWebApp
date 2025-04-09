@@ -2,6 +2,7 @@
 import { NextFunction, Request, Response } from "express";
 import User from "../models/Users";
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
 
 // Register a new user
 export const registerUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -17,6 +18,7 @@ export const registerUser = async (req: Request, res: Response, next: NextFuncti
 
     // Create a new user
     const newUser = new User({
+      ObjectId: new mongoose.Types.ObjectId(),
       username,
       name,
       email,
@@ -25,7 +27,10 @@ export const registerUser = async (req: Request, res: Response, next: NextFuncti
     });
 
     // Save the user to the database
-    await newUser.save();
+    await newUser.save().then(() => {
+      console.log("User registered successfully:", newUser);
+  });
+
 
     res.status(201).json({ message: "User registered successfully" });
   } catch (error) {
@@ -33,6 +38,27 @@ export const registerUser = async (req: Request, res: Response, next: NextFuncti
     next(error); // Pass the error to the error-handling middleware
   }
 };
+
+export const SearchUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const { username } = req.params; // Get the username from the request parameters
+
+  try {
+    // Find users by username (case-insensitive)
+    const users = await User.find({
+      username: { $regex: new RegExp(username, "i") },
+    }).select("username name email avatar"); // Select only the fields you want to return
+
+    if (users.length === 0) {
+      res.status(404).json({ message: "No users found" });
+      return;
+    }
+
+    res.status(200).json(users);
+  } catch (error) {
+    console.error("Error searching for users:", error);
+    next(error); // Pass the error to the error-handling middleware
+  }
+}
 
 // Login a user
 export const loginUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -62,7 +88,7 @@ export const loginUser = async (req: Request, res: Response, next: NextFunction)
       message: "Login successful",
       token,
       user: {
-        id: user._id,
+        Id: user._id,
         username: user.username,
         name: user.name,
         email: user.email,
