@@ -3,10 +3,18 @@ import { useEffect, useRef, useState } from "react";
 import { IoIosAddCircle } from "react-icons/io";
 
 export default function GroupMessages() {
+  // Message input ref and state
   const textAreaMessage = useRef<HTMLTextAreaElement>(null);
   const [messageValue, setMessageValue] = useState("");
+
+  // Group creation modal ref and state
   const CreateGroupRef = useRef<HTMLDivElement>(null);
   const [createNewGroups, setCreateNewGroups] = useState(false);
+
+  // Auto-scroll functionality
+  const [autoScroll, setAutoScroll] = useState(true);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // Participant selection states
   const participantInputRef = useRef<HTMLDivElement>(null);
@@ -26,15 +34,41 @@ export default function GroupMessages() {
     { id: "5", name: "Alex Brown" },
   ]);
 
+  // Scroll management
+  const handleScroll = () => {
+    if (!messagesContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } =
+      messagesContainerRef.current;
+    const atBottom = scrollHeight - scrollTop <= clientHeight + 10;
+    setAutoScroll(atBottom);
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+  };
+
+  // Initial scroll to bottom and auto-scroll when new messages arrive
+  useEffect(() => {
+    scrollToBottom();
+  }, []);
+
+  useEffect(() => {
+    if (autoScroll) {
+      scrollToBottom();
+    }
+  }, [messageValue, autoScroll]);
+
   // Message and group handlers
   const handleMessageSend = () => {
-    alert("Message Sent: " + messageValue);
+    if (messageValue.trim() === "") return;
+
+    console.log("Message Sent", messageValue);
     setMessageValue("");
+    setAutoScroll(true);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
     const selectedNames = userSuggestions
       .filter((user) => selectedParticipants.includes(user.id))
       .map((user) => user.name);
@@ -45,12 +79,6 @@ export default function GroupMessages() {
     }
 
     alert(`Selected Participants:\n${selectedNames.join("\n")}`);
-
-    // Optional: Close the modal after submission
-    // setCreateNewGroups(false);
-
-    // Optional: Reset the form
-    // setSelectedParticipants([]);
   };
 
   const handleCreateGroup = () => {
@@ -59,20 +87,17 @@ export default function GroupMessages() {
 
   // Participant selection handlers
   const handleParticipantSelect = (id: string) => {
-    setSelectedParticipants(
-      (prev) =>
-        prev.includes(id)
-          ? prev.filter((pid) => pid !== id) // Remove if already selected
-          : [...prev, id] // Add if not selected
+    setSelectedParticipants((prev) =>
+      prev.includes(id) ? prev.filter((pid) => pid !== id) : [...prev, id]
     );
   };
 
   const handleSelectAll = () => {
-    if (selectedParticipants.length === userSuggestions.length) {
-      setSelectedParticipants([]); // Deselect all
-    } else {
-      setSelectedParticipants(userSuggestions.map((user) => user.id)); // Select all
-    }
+    setSelectedParticipants(
+      selectedParticipants.length === userSuggestions.length
+        ? []
+        : userSuggestions.map((user) => user.id)
+    );
   };
 
   // Click outside handler
@@ -126,8 +151,13 @@ export default function GroupMessages() {
       <div className="w-full flex flex-col shadow-2xl rounded-4xl">
         <div className="my-2 p-2 border-b-3">Image Username</div>
 
-        {/* Messages */}
-        <div className="no-scrollbar flex flex-col flex-[4] rounded-2xl p-4 overflow-y-scroll">
+        {/* Messages container with auto-scroll */}
+        <div
+          ref={messagesContainerRef}
+          onScroll={handleScroll}
+          className="no-scrollbar flex flex-col flex-[4] rounded-2xl p-4 overflow-y-auto"
+          style={{ scrollBehavior: "smooth" }}
+        >
           {[...Array(50)].map((_, i) => (
             <div
               key={i}
@@ -146,6 +176,7 @@ export default function GroupMessages() {
               </span>
             </div>
           ))}
+          <div ref={messagesEndRef} />
         </div>
 
         {/* Message input */}
@@ -155,7 +186,13 @@ export default function GroupMessages() {
               ref={textAreaMessage}
               value={messageValue}
               onChange={(e) => setMessageValue(e.target.value)}
-              className="w-full h-full p-2 border-2 border-solid border-amber-600 rounded-lg resize-none"
+              onKeyPress={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleMessageSend();
+                }
+              }}
+              className="w-full h-full p-2 border-2 border-solid border-amber-600 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-amber-500"
               placeholder="Type a message..."
             />
           </div>
@@ -168,13 +205,13 @@ export default function GroupMessages() {
         </div>
       </div>
 
+      {/* Group creation modal */}
       {createNewGroups && (
         <>
           <div
             className="fixed inset-0 bg-gray-400/50 backdrop-blur-xl z-40"
             onClick={() => setCreateNewGroups(false)}
           />
-
           <div className="fixed inset-0 flex items-center justify-center z-50">
             <div
               ref={CreateGroupRef}
@@ -190,8 +227,9 @@ export default function GroupMessages() {
                   <label className="font-medium">Group Name</label>
                   <input
                     type="text"
-                    className="w-full p-2 border border-gray-300 rounded-md"
+                    className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Enter group name"
+                    required
                   />
                 </div>
 
@@ -206,7 +244,7 @@ export default function GroupMessages() {
                     value={participantInput}
                     onChange={(e) => setParticipantInput(e.target.value)}
                     onClick={() => setShowParticipantSuggestions(true)}
-                    className="w-full p-2 border border-gray-300 rounded-md"
+                    className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="Search participants..."
                   />
 

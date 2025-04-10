@@ -30,9 +30,15 @@ export const registerUser = async (req: Request, res: Response, next: NextFuncti
     await newUser.save().then(() => {
       console.log("User registered successfully:", newUser);
   });
-
-
-    res.status(201).json({ message: "User registered successfully" });
+    res.status(201).json({ message: "User registered successfully",
+      user:{
+        Id: newUser._id,
+        username: newUser.username,
+        name: newUser.name,
+        email: newUser.email,
+        avatar: newUser.avatar,
+      }
+    });
   } catch (error) {
     console.error("Error registering user:", error);
     next(error); // Pass the error to the error-handling middleware

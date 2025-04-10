@@ -1,15 +1,51 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { IoIosSend } from "react-icons/io";
+
 export default function GlobalChats() {
   const [message, setMessage] = useState("");
+  const [autoScroll, setAutoScroll] = useState(true);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleScroll = () => {
+    if (!messagesContainerRef.current) return;
+
+    const { scrollTop, scrollHeight, clientHeight } =
+      messagesContainerRef.current;
+    const atBottom = scrollHeight - scrollTop <= clientHeight + 10;
+    setAutoScroll(atBottom);
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+  };
+
+  useEffect(() => {
+    if (autoScroll) {
+      scrollToBottom();
+    }
+  }, [autoScroll, message]); // Added message as dependency
+
+  useEffect(() => {
+    scrollToBottom();
+  }, []);
+
   const clickme = () => {
     alert(message);
+    setMessage(""); // Clear input after sending
+    setAutoScroll(true); // Force scroll to bottom on new message
   };
+
   return (
     <div className="flex flex-col w-1/2 h-full justify-self-center shadow-2xl p-4">
       <h2 className="my-2">Global Chats</h2>
-      {/* Messages Container */}
-      <div className="flex-[10] p-4 overflow-y-scroll no-scrollbar">
+
+      {/* Messages Container - Ref goes here! */}
+      <div
+        ref={messagesContainerRef}
+        onScroll={handleScroll}
+        className="flex-[10] p-4 overflow-y-auto no-scrollbar"
+      >
         {[...Array(50)].map((_, i) => (
           <div key={i} className={`flex my-4 space-x-2`}>
             <img
@@ -27,14 +63,19 @@ export default function GlobalChats() {
             </span>
           </div>
         ))}
+        {/* Scroll anchor - must be inside container at the end */}
+        <div ref={messagesEndRef} />
       </div>
+
       {/* Message Send input */}
       <div className="flex-[2] flex flex-row p-4 shadow-2xl">
         <textarea
           className="flex-[8] resize-none"
           name="InputMessage"
           id="InputMessage"
+          value={message}
           onChange={(e) => setMessage(e.target.value)}
+          onKeyPress={(e) => e.key === "Enter" && !e.shiftKey && clickme()}
           placeholder="Type a message..."
         ></textarea>
         <div

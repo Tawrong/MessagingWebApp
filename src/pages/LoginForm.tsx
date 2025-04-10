@@ -77,11 +77,8 @@ function LoginForm() {
 
         const result = await response.json();
         console.log("Signup successful:", result);
-
-        // Set user data in context
-        setUser(result.user);
-
-        // Automatically log in the user after signup
+        setUser(result.user); // Set user data in context
+        console.log("User data set in context:", result.user);
         navigate("/PrivateChats");
       }
     } catch (error) {
