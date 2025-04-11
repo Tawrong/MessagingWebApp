@@ -1,11 +1,8 @@
 // src/types.ts
 export interface User {
-  id: string;
+  Id: string;
   name: string;
   avatar: string;
-  status?: 'online' | 'offline' | 'away' | 'busy';
-  lastMessage?: string;
-  unreadCount?: number;
   lastMessageTime?: Date;
 }
 

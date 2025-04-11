@@ -45,27 +45,6 @@ export const registerUser = async (req: Request, res: Response, next: NextFuncti
   }
 };
 
-export const SearchUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const { username } = req.params; // Get the username from the request parameters
-
-  try {
-    // Find users by username (case-insensitive)
-    const users = await User.find({
-      username: { $regex: new RegExp(username, "i") },
-    }).select("username name email avatar"); // Select only the fields you want to return
-
-    if (users.length === 0) {
-      res.status(404).json({ message: "No users found" });
-      return;
-    }
-
-    res.status(200).json(users);
-  } catch (error) {
-    console.error("Error searching for users:", error);
-    next(error); // Pass the error to the error-handling middleware
-  }
-}
-
 // Login a user
 export const loginUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const { email, password } = req.body;
@@ -104,5 +83,42 @@ export const loginUser = async (req: Request, res: Response, next: NextFunction)
   } catch (error) {
     console.error("Error logging in user:", error);
     next(error); // Pass the error to the error-handling middleware
+  }
+};
+
+// Search Users
+export const SearchUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const { username, myusername } = req.query as { username: string; myusername: string };
+
+  console.log("Searching for users with username:", username, "excluding myusername:", myusername);
+ 
+
+  try {
+    const users = await User.find({
+      $and: [
+        { username: { $regex: new RegExp(username as string, "i") } },
+        { username: { $ne: myusername } }
+      ]
+    }).select("_id username name email avatar");
+
+    if (users.length === 0) {
+      res.status(404).json({ message: "No users found" });
+      return;
+    }
+
+    res.status(200).json({
+      message: "Users found",
+      users: users.map((user) => ({
+        Id: user._id,
+        username: user.username,
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar,
+      })),
+    });
+
+  } catch (error) {
+    console.error("Error searching for users:", error);
+    next(error);
   }
 };
