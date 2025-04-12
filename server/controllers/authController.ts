@@ -2,7 +2,8 @@
 import { NextFunction, Request, Response } from "express";
 import User from "../models/Users";
 import jwt from "jsonwebtoken";
-import mongoose from "mongoose";
+import mongoose, { isValidObjectId } from "mongoose";
+import { saveMessage } from "../services/messageService";
 
 // Register a new user
 export const registerUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -120,5 +121,66 @@ export const SearchUser = async (req: Request, res: Response, next: NextFunction
   } catch (error) {
     console.error("Error searching for users:", error);
     next(error);
+  }
+};
+
+export const sendMessage = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const { senderId, receiverId, content } = req.body;
+
+    // Validate required fields
+    if (!senderId || !receiverId || !content) {
+      res.status(400).json({ error: 'Missing required fields: senderId, receiverId, or content' });
+      return;
+    }
+
+    // Validate MongoDB ObjectId format
+    if (!isValidObjectId(senderId)) {
+      res.status(400).json({ error: 'Invalid senderId format' });
+      return;
+    }
+
+    if (!isValidObjectId(receiverId)) {
+      res.status(400).json({ error: 'Invalid receiverId format' });
+      return;
+    }
+
+    // Validate content length
+    if (typeof content !== 'string' || content.trim().length === 0) {
+      res.status(400).json({ error: 'Message content cannot be empty' });
+      return;
+    }
+
+    if (content.length > 2000) {
+      res.status(400).json({ error: 'Message content too long (max 2000 characters)' });
+      return;
+    }
+
+    // Save the message
+    const message = await saveMessage({ senderId, receiverId, content });
+    
+    res.status(201).json({
+      success: true,
+      message: 'Message sent successfully',
+      data: message
+    });
+
+  } catch (error) {
+    console.error('Message send error:', error);
+    
+    // Handle specific error types
+    if (error.name === 'ValidationError') {
+      res.status(400).json({ 
+        error: 'Validation failed',
+        details: error.errors 
+      });
+    } else {
+      // Pass to error handling middleware
+      next(error);
+    }
   }
 };

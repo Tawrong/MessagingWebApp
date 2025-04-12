@@ -4,6 +4,7 @@ export interface User {
   name: string;
   avatar: string;
   lastMessageTime?: Date;
+  username: string
 }
 
 export interface ChatMessage {

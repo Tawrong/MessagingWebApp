@@ -16,13 +16,12 @@ export default function ChatMessages() {
 
   // State
 
-  const [showSearchOptions, setShowSearchOptions] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [messageValue, setMessageValue] = useState("");
   const [autoScroll, setAutoScroll] = useState(true);
   const { user } = useUser(); // Assuming you have a user context or prop
+
   const [currentChatUser, setCurrentChatUser] = useState("");
-  const userData = user?.name;
   const [searchOptions, setSearchOptions] = useState<User[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   // Scroll handling
@@ -49,72 +48,70 @@ export default function ChatMessages() {
   }, []);
 
   // Message handling
-  const handleMessageSend = () => {
-    if (!messageValue.trim()) return;
+  const handleMessageSend = async () => {
+    console.log("Sending message:", messageValue);
+    console.log("Current user ID:", user?.Id);
+    console.log("Current chat user:", currentChatUser);
+    // if (!messageValue.trim()) return;
 
-    const newMessage: ChatMessage = {
-      id: messages.length + 1,
-      text: messageValue,
-      timestamp: new Date().toISOString(),
-      sender: "me",
-    };
+    // const newMessage: ChatMessage = {
+    //   id: messages.length + 1,
+    //   text: messageValue,
+    //   timestamp: new Date().toISOString(),
+    //   sender: user?.Id || "me",
+    // };
 
-    setMessages([...messages, newMessage]);
-    setMessageValue("");
-    setAutoScroll(true);
-
-    // Auto-reply simulation
-    if (Math.random() > 0.3) {
-      setTimeout(() => {
-        const replies = [
-          "That's interesting!",
-          "I see what you mean.",
-          "Tell me more about that.",
-          "Thanks for letting me know!",
-          "I agree with you.",
-        ];
-        const replyMessage: ChatMessage = {
-          id: messages.length + 2,
-          text: replies[Math.floor(Math.random() * replies.length)],
+    // setMessages([...messages, newMessage]);
+    // setMessageValue("");
+    try {
+      const url = new URL(
+        `${import.meta.env.VITE_BACKEND_URL}/api/auth/PrivateChats/Messages`
+      );
+      const response = await fetch(url.toString(), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          senderId: user?.Id,
+          receiverId: currentChatUser,
+          content: messageValue,
+        }),
+      });
+      const result = await response.json();
+      console.log("Message sent:", result);
+      if (result.success) {
+        const newMessage: ChatMessage = {
+          id: messages.length + 1,
+          text: messageValue,
           timestamp: new Date().toISOString(),
-          sender: "other",
-          senderName: currentChatUser,
-          senderAvatar: searchOptions.find((u) => u.name === currentChatUser)
-            ?.avatar,
+          sender: user?.Id || "me",
         };
-        setMessages((prev) => [...prev, replyMessage]);
-      }, 1000 + Math.random() * 2000);
+        setMessages([...messages, newMessage]);
+        setMessageValue("");
+      }
+    } catch (err) {
+      console.error("Error sending message:", err);
     }
+
+    setAutoScroll(true);
   };
 
   // Contact selection
-  const handleSearchSelect = (user: User) => {
-    setSearchValue(user.name);
-    setCurrentChatUser(user.name);
-    setShowSearchOptions(false);
+  const handleSearchSelect = (User: User) => {
+    setSearchValue(User.name);
+    setCurrentChatUser(User.Id);
 
-    console.log("Selected user:", currentChatUser, user.Id);
-    console.log("Selected user:", user.name);
-    console.log("User avatar:", user.avatar);
-    console.log("User ID:", user.Id);
+    console.log("Selected user:", currentChatUser, User.Id);
+    console.log("Selected user:", User.name);
+    console.log("User avatar:", User.avatar);
+    console.log("User ID:", User.Id);
   };
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (!(event.target as HTMLElement).closest(".dropdown")) {
-        setShowSearchOptions(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   // Debounced search change
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     setSearchValue(value);
-    setShowSearchOptions(true);
     if (debouncedFetchUsersRef.current) {
       debouncedFetchUsersRef.current(value); // Use the ref to call the debounced function
     }
@@ -129,7 +126,7 @@ export default function ChatMessages() {
 
       // Add query parameters
       url.searchParams.append("username", query);
-      url.searchParams.append("myusername", userData || "");
+      url.searchParams.append("myusername", user?.name || "");
 
       const response = await fetch(url.toString(), {
         method: "GET",
@@ -140,9 +137,6 @@ export default function ChatMessages() {
 
       const result = await response.json();
       setSearchOptions(result.users); // depending on your API shape
-
-      console.log("Fetched users:", result.users);
-      console.log("Fetching users with query:", user?.name);
     } catch (err) {
       console.error("Error fetching users:", err);
     }
@@ -179,34 +173,9 @@ export default function ChatMessages() {
                 type="text"
                 value={searchValue}
                 onChange={handleSearchChange}
-                onClick={() => setShowSearchOptions(true)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Start Conversation with..."
               />
-              {showSearchOptions && Array.isArray(searchOptions) && (
-                <div className="absolute z-10 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg dropdown">
-                  {searchOptions
-                    .filter((option) =>
-                      option.name
-                        .toLowerCase()
-                        .includes(searchValue.toLowerCase())
-                    )
-                    .map((option) => (
-                      <div
-                        key={option.Id}
-                        className="p-2 hover:bg-gray-200 cursor-pointer flex items-center"
-                        onClick={() => handleSearchSelect(option)}
-                      >
-                        <img
-                          src={option.avatar}
-                          alt={option.name}
-                          className="rounded-full w-8 h-8 mr-2"
-                        />
-                        <span>{option.name}</span>
-                      </div>
-                    ))}
-                </div>
-              )}
             </div>
           </div>
           <h3 className="mt-3 mb-3">Inbox</h3>
