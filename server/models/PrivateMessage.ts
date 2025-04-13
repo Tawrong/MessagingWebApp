@@ -4,7 +4,8 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface IPrivateMessage extends Document {
   participants: mongoose.Types.ObjectId[]; // Array of User references
   content: string;
-  sender: mongoose.Types.ObjectId;         // Reference to sender
+  sender: mongoose.Types.ObjectId;   
+  status: string;      // Reference to sender
 }
 
 const PrivateMessageSchema: Schema = new Schema(
@@ -22,6 +23,12 @@ const PrivateMessageSchema: Schema = new Schema(
     sender: {
       type: Schema.Types.ObjectId,
       ref: "User",
+      required: true
+    },
+    status: {
+      type: String,
+      enum: ["sending", "delivered", "read"],
+      default: "sending",
       required: true
     }
   },

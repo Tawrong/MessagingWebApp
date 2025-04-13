@@ -4,6 +4,7 @@ import User from "../models/Users";
 import jwt from "jsonwebtoken";
 import mongoose, { isValidObjectId } from "mongoose";
 import { saveMessage } from "../services/messageService";
+import PrivateMessage from "../models/PrivateMessage";
 
 // Register a new user
 export const registerUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -121,6 +122,55 @@ export const SearchUser = async (req: Request, res: Response, next: NextFunction
   } catch (error) {
     console.error("Error searching for users:", error);
     next(error);
+  }
+};
+
+export const SearchInbox = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    // Handle participants array (same as before)
+    let participants = req.query.participants;
+    if (typeof participants === 'string') {
+      participants = participants.includes(',') 
+        ? participants.split(',') 
+        : [participants];
+    }
+    const participantArray = Array.isArray(participants) ? participants : [participants];
+
+    // Convert to ObjectIDs
+    const objectIDs = participantArray.map(id => new mongoose.Types.ObjectId(id as string));
+
+    // Fixed projection - use either inclusion OR exclusion, not both
+    const messages = await PrivateMessage.find({
+      $and: [
+        { participants: { $all: objectIDs } },
+        { participants: { $size: objectIDs.length } }
+      ]
+    })
+    .select("_id participants content sender createdAt updatedAt status") // Only inclusion
+    .sort({ _id: 1 }) // Sort by createdAt in descending order
+    .lean(); // Optional: returns plain JS objects
+
+    if (messages.length === 0) {
+      res.status(404).json({ message: "No messages found" });
+      return;
+    }
+
+    console.log("Messages found:", messages);
+
+    res.status(200).json({
+      message: "Messages found",
+      InboxSearch: messages.map((message) => ({
+        Id: message._id,
+        participants: message.participants,
+        content: message.content,
+        sender: message.sender,
+        status: message.status,
+      }))
+    });
+  } catch(err) {
+    console.error("Error searching inbox:", err);
+    res.status(500).json({ error: "Internal server error" });
+    next(err);
   }
 };
 

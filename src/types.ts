@@ -8,10 +8,19 @@ export interface User {
 }
 
 export interface ChatMessage {
-  id: number;
+  id: string;
   text: string;
   timestamp: string;
   sender: string;
   senderName?: string;
   senderAvatar?: string;
+  status: string;
+}
+
+export interface MessageContainers {
+  Id: string;
+  content: string;
+  participants: string[];
+  sender: string;
+  status: string;
 }

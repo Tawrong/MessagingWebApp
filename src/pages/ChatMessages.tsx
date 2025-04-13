@@ -3,7 +3,7 @@ import { IoIosSend } from "react-icons/io";
 import { useRef, useState, useEffect } from "react";
 import Message from "../components/Message";
 import ContactList from "../components/ContactList";
-import { User, ChatMessage } from "../types";
+import { User, ChatMessage, MessageContainers } from "../types";
 import { useUser } from "../context/useUser";
 import { debounce } from "../utils/debounce";
 
@@ -19,8 +19,12 @@ export default function ChatMessages() {
   const [searchValue, setSearchValue] = useState("");
   const [messageValue, setMessageValue] = useState("");
   const [autoScroll, setAutoScroll] = useState(true);
+  const [selectedUserAvatar, setSelectedUserAvatar] = useState("");
   const { user } = useUser(); // Assuming you have a user context or prop
-
+  const [messageContainer, setMessageContainer] = useState<MessageContainers[]>(
+    []
+  );
+  const [selectedUserName, setSelectedUserName] = useState("");
   const [currentChatUser, setCurrentChatUser] = useState("");
   const [searchOptions, setSearchOptions] = useState<User[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -52,17 +56,10 @@ export default function ChatMessages() {
     console.log("Sending message:", messageValue);
     console.log("Current user ID:", user?.Id);
     console.log("Current chat user:", currentChatUser);
-    // if (!messageValue.trim()) return;
 
-    // const newMessage: ChatMessage = {
-    //   id: messages.length + 1,
-    //   text: messageValue,
-    //   timestamp: new Date().toISOString(),
-    //   sender: user?.Id || "me",
-    // };
+    if (!messageValue.trim()) return;
 
-    // setMessages([...messages, newMessage]);
-    // setMessageValue("");
+    setMessageValue("");
     try {
       const url = new URL(
         `${import.meta.env.VITE_BACKEND_URL}/api/auth/PrivateChats/Messages`
@@ -76,18 +73,13 @@ export default function ChatMessages() {
           senderId: user?.Id,
           receiverId: currentChatUser,
           content: messageValue,
+          status: "sending",
         }),
       });
       const result = await response.json();
       console.log("Message sent:", result);
+
       if (result.success) {
-        const newMessage: ChatMessage = {
-          id: messages.length + 1,
-          text: messageValue,
-          timestamp: new Date().toISOString(),
-          sender: user?.Id || "me",
-        };
-        setMessages([...messages, newMessage]);
         setMessageValue("");
       }
     } catch (err) {
@@ -97,15 +89,72 @@ export default function ChatMessages() {
     setAutoScroll(true);
   };
 
-  // Contact selection
+  const handleContactInbox = async (query: string[]) => {
+    try {
+      const url = new URL(
+        `${import.meta.env.VITE_BACKEND_URL}/api/auth/PrivateChats/SearchInbox`
+      );
+
+      // Add participants to URL
+      query.forEach((id) => url.searchParams.append("participants", id));
+
+      const response = await fetch(url.toString());
+      const result = await response.json();
+
+      if (response.ok) {
+        const messageHistory: MessageContainers[] = result.InboxSearch.map(
+          (msg: {
+            Id: string;
+            content: string;
+            participants: string[];
+            sender: string;
+            status: string;
+          }) => ({
+            Id: msg.Id,
+            content: msg.content,
+            participants: msg.participants,
+            sender: msg.sender,
+            status: msg.status,
+          })
+        );
+
+        const transformedMessages = messageHistory.map((msg) => ({
+          id: msg.Id, // Convert id to number
+          text: msg.content,
+          timestamp: new Date().toISOString(), // Adjust this as needed
+          sender: msg.sender,
+          senderName: selectedUserName,
+          senderAvatar: selectedUserAvatar,
+          status: msg.status, // Placeholder, replace with actual logic to get avatar
+        }));
+        setMessageContainer(messageHistory);
+        console.log("Current messages:", messages);
+        setMessages(transformedMessages); // Log the new messages directly
+
+        return messages;
+      } else {
+        console.error("Server error:", result.message || result.error);
+        return [];
+      }
+    } catch (err) {
+      console.error("Network error:", err);
+      return [];
+    }
+  };
+  useEffect(() => {}, [selectedUserAvatar, selectedUserName]);
+
+  useEffect(() => {
+    console.log("Updated messageContainer:", messageContainer);
+  }, [messageContainer]); // This will log whenever messageContainer changes
+
   const handleSearchSelect = (User: User) => {
     setSearchValue(User.name);
     setCurrentChatUser(User.Id);
-
+    setSelectedUserName(User.name);
+    setSelectedUserAvatar(User.avatar);
     console.log("Selected user:", currentChatUser, User.Id);
-    console.log("Selected user:", User.name);
-    console.log("User avatar:", User.avatar);
     console.log("User ID:", User.Id);
+    handleContactInbox([user?.Id || "", User.Id]);
   };
 
   // Debounced search change
@@ -184,7 +233,7 @@ export default function ChatMessages() {
         {/* Contact list */}
         <ContactList
           users={searchOptions}
-          currentChatUser={currentChatUser}
+          currentChatUser={selectedUserName}
           onSelect={handleSearchSelect}
           avatarSize="md"
         />
@@ -195,11 +244,11 @@ export default function ChatMessages() {
         <div className="my-2 p-2 border-b-3 flex items-center">
           {(() => {
             const chatUser = searchOptions.find(
-              (u) => u.name === currentChatUser
+              (u) => u.name === selectedUserName
             );
             const avatar =
               chatUser?.avatar ||
-              "https://randomuser.me/api/portraits/men/1.jpg";
+              "https://www.mediafire.com/view/rl67eqkychubthq";
 
             return (
               <img
@@ -210,7 +259,7 @@ export default function ChatMessages() {
             );
           })()}
 
-          <h3>{currentChatUser}</h3>
+          <h3>{selectedUserName}</h3>
         </div>
 
         {/* Messages */}
@@ -225,7 +274,7 @@ export default function ChatMessages() {
               key={msg.id}
               text={msg.text}
               timestamp={new Date(msg.timestamp)}
-              isSent={msg.sender === "me"}
+              isSent={msg.sender === user?.Id}
               senderName={msg.senderName}
               senderAvatar={msg.senderAvatar}
             />
