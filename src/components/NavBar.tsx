@@ -1,9 +1,17 @@
 // filepath: c:\Users\jjten\OneDrive\Desktop\Codes\Vite\Messenger\src\components\NavBar.tsx
 import { NavLink, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { FaComments, FaGlobe, FaUsers, FaChevronLeft, FaChevronRight, FaSignOutAlt, FaUserEdit } from "react-icons/fa";
+import {
+  FaComments,
+  FaGlobe,
+  FaUsers,
+  FaChevronLeft,
+  FaChevronRight,
+  FaSignOutAlt,
+  FaUserEdit,
+} from "react-icons/fa";
 
-function NavBar({name, avatar}: { name: string, avatar: string }) {
+function NavBar({ name, avatar }: { name: string; avatar: string }) {
   const [isMinimized, setIsMinimized] = useState(false);
   const navigate = useNavigate();
 
@@ -24,7 +32,13 @@ function NavBar({name, avatar}: { name: string, avatar: string }) {
     >
       <div>
         <div className="flex items-center justify-between mb-4 space-x-2">
-          <img className="overflow-hidden rounded-full w-18" src={avatar} alt="" />
+          {avatar && (
+            <img
+              className="overflow-hidden rounded-full w-18"
+              src={avatar}
+              alt="User Avatar"
+            />
+          )}
           {!isMinimized && <span className="text-sm font-medium">{name}</span>}
           <button
             onClick={toggleNavBar}
@@ -85,7 +99,7 @@ function NavBar({name, avatar}: { name: string, avatar: string }) {
               <FaUserEdit />
               {!isMinimized && <span>Profile Settings</span>}
             </NavLink>
-          </li> 
+          </li>
         </ul>
       </div>
       <div>

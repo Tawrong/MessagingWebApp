@@ -6,6 +6,7 @@ export interface IPrivateMessage extends Document {
   content: string;
   sender: mongoose.Types.ObjectId;   
   status: string;      // Reference to sender
+  createdAt: Date;
 }
 
 const PrivateMessageSchema: Schema = new Schema(

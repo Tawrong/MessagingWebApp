@@ -1,12 +1,13 @@
 // src/components/ContactList.tsx
 import { FC } from "react";
-import { User } from "../types";
+import { User, Message } from "../types"; // Make sure to import Message type
 
 interface ContactListProps {
   users: User[];
   currentChatUser: string;
   onSelect: (user: User) => void;
   avatarSize?: "sm" | "md" | "lg";
+  conversations?: Message[]; // Add this new prop
 }
 
 const sizeClasses = {
@@ -20,35 +21,59 @@ const ContactList: FC<ContactListProps> = ({
   currentChatUser,
   onSelect,
   avatarSize = "md",
+  conversations = [], // Default empty array
 }) => {
+  // Combine both users and conversation participants
+  const allContacts = [
+    ...users,
+    ...conversations.map((conv) => ({
+      Id: conv.participants._id,
+      name: conv.participants.name,
+      email: conv.participants.email,
+      avatar: conv.participants.avatar,
+      lastMessage: conv.content,
+      lastMessageTime: conv.createdAt,
+    })),
+  ];
+
+  // Remove duplicates (in case a user appears in both)
+  const uniqueContacts = allContacts.filter(
+    (contact, index, self) =>
+      index === self.findIndex((c) => c.Id === contact.Id)
+  );
+
   return (
     <div className="no-scrollbar flex-1 overflow-y-auto px-4 pb-4">
-      {users.map((user) => (
+      {uniqueContacts.map((contact) => (
         <div
-          key={user.Id}
+          key={contact.Id}
           className={`py-3 flex items-center cursor-pointer hover:bg-gray-100 rounded-lg p-2 transition-colors ${
-            currentChatUser === user.name ? "bg-blue-200" : ""
+            currentChatUser === contact.name ? "bg-blue-200" : ""
           }`}
-          onClick={() => onSelect(user)}
+          onClick={() =>
+            onSelect({
+              Id: contact.Id,
+              name: contact.name,
+              avatar: contact.avatar,
+              username: "Hello",
+            })
+          }
         >
           <div className="relative">
             <img
-              src={user.avatar}
-              alt={user.name}
+              src={contact.avatar}
+              alt={contact.name}
               className={`rounded-full ${sizeClasses[avatarSize]} mr-3 object-cover`}
             />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex justify-between items-center">
-              <h4 className="font-medium truncate">{user.name}</h4>
+              <h4 className="font-medium truncate">{contact.name}</h4>
             </div>
             <div className="flex justify-between items-center">
-              <p className="text-sm text-gray-500 truncate"></p>
-              {/* {user.unreadCount && user.unreadCount > 0 && (
-                <span className="bg-blue-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center ml-2">
-                  {user.unreadCount}
-                </span>
-              )} */}
+              <p className="text-sm text-gray-500 truncate">
+                {"lastMessage" in contact ? contact.lastMessage : ""}
+              </p>
             </div>
           </div>
         </div>

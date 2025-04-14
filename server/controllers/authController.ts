@@ -91,10 +91,6 @@ export const loginUser = async (req: Request, res: Response, next: NextFunction)
 // Search Users
 export const SearchUser = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   const { username, myusername } = req.query as { username: string; myusername: string };
-
-  console.log("Searching for users with username:", username, "excluding myusername:", myusername);
- 
-
   try {
     const users = await User.find({
       $and: [
@@ -111,6 +107,7 @@ export const SearchUser = async (req: Request, res: Response, next: NextFunction
     res.status(200).json({
       message: "Users found",
       users: users.map((user) => ({
+        
         Id: user._id,
         username: user.username,
         name: user.name,
@@ -173,6 +170,55 @@ export const SearchInbox = async (req: Request, res: Response, next: NextFunctio
     next(err);
   }
 };
+
+export const loadInbox = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  
+
+  try {
+    const { userId } = req.query as { userId: string };
+    console.log("Searching inbox for userId:", userId);
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      res.status(400).json({ message: "Invalid userId" });
+      return;
+    }
+
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+
+    const searchConversation = await PrivateMessage.find({
+      $and: [
+        { participants: userObjectId },
+      ]
+    })
+      .populate('participants', '_id name email avatar')
+      .select("_id participants content sender createdAt updatedAt status")
+      .sort({ _id: -1 })
+      .lean();
+
+    if (searchConversation.length === 0) {
+      res.status(404).json({ message: "No messages found" });
+      return;
+    }
+
+    res.status(200).json({
+      message: "Messages found",
+      InboxSearch: searchConversation.map((message) => ({
+        Id: message._id,
+        participants: message.participants[1],
+        content: message.content,
+        sender: message.sender,
+        status: message.status,
+        createdAt: message.createdAt,
+      }))
+    });
+
+  } catch (err) {
+    console.error("Error loading inbox:", err);
+    res.status(500).json({ error: "Internal server error" });
+    next(err);
+  }
+};
+
 
 export const sendMessage = async (
   req: Request,
