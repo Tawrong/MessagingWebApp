@@ -1,6 +1,6 @@
 // This file defines the routes for user authentication, including registration and login.
 import express from "express";
-import { registerUser, loginUser, SearchUser, sendMessage, SearchInbox, loadInbox } from "../controllers/authController";
+import { registerUser, loginUser, getMessagesByConversation, sendMessage, SearchUser, getConversations} from "../controllers/authController";
 
 const router = express.Router();
 
@@ -9,8 +9,9 @@ router.post("/register", registerUser);
 
 // Route for user login
 router.post("/login", loginUser);
-router.get("/PrivateChats/searchUser", SearchUser)
-router.post("/PrivateChats/Messages", sendMessage);
-router.get("/PrivateChats/SearchInbox", SearchInbox);
-router.get("/PrivateChats/OnstartInbox", loadInbox);
+router.get("/PrivateMessages/searchuser", SearchUser)
+router.get("/PrivateMessages/GetMessagebyConvo", getMessagesByConversation);
+router.post("/PrivateMessages/sendMessage", sendMessage);
+router.get("/PrivateMessages/getConversation", getConversations)
+
 export default router;

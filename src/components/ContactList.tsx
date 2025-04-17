@@ -27,12 +27,10 @@ const ContactList: FC<ContactListProps> = ({
   const allContacts = [
     ...users,
     ...conversations.map((conv) => ({
-      Id: conv.participants._id,
-      name: conv.participants.name,
-      email: conv.participants.email,
-      avatar: conv.participants.avatar,
-      lastMessage: conv.content,
-      lastMessageTime: conv.createdAt,
+      Id: conv.Id,
+      name: conv.name,
+      email: conv.email,
+      avatar: conv.avatar,
     })),
   ];
 

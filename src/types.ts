@@ -1,10 +1,20 @@
 // src/types.ts
-export interface User {
+export interface userSearch {
   Id: string;
   name: string;
   avatar: string;
-  lastMessageTime?: Date;
-  username: string
+  username: string;
+  email: string;
+  lastMessage: string
+}
+
+export interface MessageType {
+      Id: string
+      content: string;
+      sender: string;
+      participants: string[];
+      status: string;
+      createdAt: string;
 }
 
 export interface ChatMessage {
@@ -39,15 +49,8 @@ export interface Participants {
   status: string;
 }
 export interface Message {
-  Id: string;
-  content: string;
-  createdAt: string;
-  participants: {
-    _id: string;
+    Id: string;
     name: string;
     email: string;
     avatar: string;
-  };
-  sender: string;
-  status: string;
 }

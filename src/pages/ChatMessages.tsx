@@ -1,11 +1,37 @@
 import { FaSearch } from "react-icons/fa";
 import { IoIosSend } from "react-icons/io";
-import { useRef, useState, useEffect, useCallback, useMemo } from "react";
-import Message from "../components/Message";
-import ContactList from "../components/ContactList";
-import { User, ChatMessage, Participants } from "../types";
+import { useRef, useState, useEffect, useCallback } from "react";
+import { userSearch } from "../types";
 import { useUser } from "../context/useUser";
-import { debounce } from "../utils/debounce";
+
+interface ChatMessage {
+  id: string;
+  text: string;
+  timestamp: Date;
+  isSent: boolean;
+  senderName: string;
+  senderAvatar: string;
+}
+
+interface Conversation {
+  _id: string;
+  participants: {
+    _id: string;
+    name: string;
+    avatar: string;
+    username: string;
+  }[];
+  lastMessage?: {
+    content: string;
+    createdAt: string;
+    sender: string;
+  };
+  updatedAt: string;
+}
+
+interface SearchUsersResponse {
+  users: userSearch[];
+}
 
 export default function ChatMessages() {
   // Refs
@@ -13,203 +39,338 @@ export default function ChatMessages() {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // State
-  const [searchValue, setSearchValue] = useState("");
-  const [messageValue, setMessageValue] = useState("");
-  const [autoScroll, setAutoScroll] = useState(true);
-  const [selectedUserAvatar, setSelectedUserAvatar] = useState("");
-  const [participantsConvo, setParticipantsConvo] = useState<Participants[]>(
-    []
-  );
   const { user } = useUser();
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [searchValue, setSearchValue] = useState("");
+  const [searchUsers, setSearchUsers] = useState<userSearch[]>([]);
+  const [messageValue, setMessageValue] = useState("");
+  const [selectedUserAvatar, setSelectedUserAvatar] = useState("");
   const [selectedUserName, setSelectedUserName] = useState("");
-  const [currentChatUser, setCurrentChatUser] = useState("");
-  const [searchOptions, setSearchOptions] = useState<User[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Scroll handling
-  const handleScroll = useCallback(() => {
+  // Auto-scroll to bottom when messages change
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  // Handle scroll events
+  const handleScroll = () => {
     if (!messagesContainerRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } =
       messagesContainerRef.current;
-    setAutoScroll(scrollHeight - scrollTop <= clientHeight + 10);
-  }, []);
+    const isNearBottom = scrollHeight - scrollTop <= clientHeight + 100;
+    setAutoScroll(isNearBottom);
+  };
 
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, []);
-
-  // Message handling
-  const handleMessageSend = useCallback(async () => {
-    if (!messageValue.trim() || !user?.Id || !currentChatUser) return;
-
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_BACKEND_URL}/api/auth/PrivateChats/Messages`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            senderId: user.Id,
-            receiverId: currentChatUser,
-            content: messageValue,
-            status: "sending",
-          }),
-        }
-      );
-
-      if (response.ok) {
-        setMessageValue("");
-        setAutoScroll(true);
-      }
-    } catch (err) {
-      console.error("Error sending message:", err);
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (autoScroll) {
+      scrollToBottom();
     }
-  }, [messageValue, user?.Id, currentChatUser]);
+  }, [messages, autoScroll]);
 
-  const handleContactInbox = useCallback(
-    async (participantIds: string[]) => {
+  // Search users function
+  const SearchUsers = useCallback(
+    async (query: string) => {
       try {
         const url = new URL(
           `${
             import.meta.env.VITE_BACKEND_URL
-          }/api/auth/PrivateChats/SearchInbox`
+          }/api/auth/PrivateMessages/searchuser`
         );
-        participantIds.forEach((id) =>
-          url.searchParams.append("participants", id)
-        );
-
+        url.searchParams.append("name", query);
+        url.searchParams.append("myname", user?.name || "");
         const response = await fetch(url.toString());
-        if (!response.ok) throw new Error("Failed to fetch inbox");
 
-        const result = await response.json();
-        type InboxMessage = {
-          Id: string;
-          content: string;
-          sender: string;
-          status: string;
-        };
-
-        const transformedMessages = result.InboxSearch.map(
-          (msg: InboxMessage) => ({
-            id: msg.Id,
-            text: msg.content,
-            timestamp: new Date().toISOString(),
-            sender: msg.sender,
-            senderName: selectedUserName,
-            senderAvatar: selectedUserAvatar,
-            status: msg.status,
-          })
-        );
-
-        setMessages(transformedMessages);
+        if (!response.ok) {
+          throw new Error("Failed to fetch users");
+        }
+        const result: SearchUsersResponse = await response.json();
+        setSearchUsers(result.users);
       } catch (err) {
-        console.error("Error fetching inbox:", err);
-      }
-    },
-    [selectedUserName, selectedUserAvatar]
-  );
-
-  const handleSearchSelect = useCallback(
-    (selectedUser: User) => {
-      if (!user?.Id) return;
-
-      setSearchValue(selectedUser.name);
-      setCurrentChatUser(selectedUser.Id);
-      setSelectedUserName(selectedUser.name);
-      setSelectedUserAvatar(selectedUser.avatar);
-      handleContactInbox([user.Id, selectedUser.Id]);
-    },
-    [user?.Id, handleContactInbox]
-  );
-
-  const fetchUsers = useCallback(
-    async (query: string) => {
-      if (!user?.name) return;
-
-      try {
-        const url = new URL(
-          `${import.meta.env.VITE_BACKEND_URL}/api/auth/PrivateChats/searchUser`
-        );
-        url.searchParams.append("username", query);
-        url.searchParams.append("myusername", user.name);
-
-        const response = await fetch(url.toString());
-        if (!response.ok) throw new Error("Failed to fetch users");
-
-        const result = await response.json();
-        setSearchOptions(result.users || []);
-      } catch (err) {
-        console.error("Error fetching users:", err);
+        console.error(err);
+        setError("Failed to search users");
       }
     },
     [user?.name]
   );
 
-  // Properly typed debounced function
-  const debouncedFetchUsers = useMemo(
-    () => debounce(fetchUsers, 1000),
-    [fetchUsers]
-  );
-
-  const handleSearchChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = e.target.value;
-      setSearchValue(value);
-      debouncedFetchUsers(value);
-    },
-    [debouncedFetchUsers]
-  );
-
-  // Effects
-  useEffect(() => {
-    scrollToBottom();
-  }, [scrollToBottom]);
-
-  useEffect(() => {
-    if (autoScroll) {
-      scrollToBottom();
+  // Handle search input changes
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchValue(value);
+    if (value.trim()) {
+      SearchUsers(value);
+    } else {
+      setSearchUsers([]);
     }
-  }, [autoScroll, messages, scrollToBottom]);
+  };
 
-  const Inbox = useCallback(async (query: string) => {
+  const sendMessage = useCallback(async () => {
+    if (!messageValue.trim() || !user?.Id || !selectedUserId) return;
+
     try {
-      const url = new URL(
-        `${import.meta.env.VITE_BACKEND_URL}/api/auth/PrivateChats/OnstartInbox`
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_BACKEND_URL
+        }/api/auth/PrivateMessages/sendMessage`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            senderId: user.Id,
+            recipientId: selectedUserId,
+            content: messageValue,
+            messageType: "text",
+          }),
+        }
       );
-      url.searchParams.append("userId", query);
 
-      const response = await fetch(url.toString(), {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      if (!response.ok) {
+        throw new Error("Failed to send message");
+      }
+
+      const newMessage: ChatMessage = {
+        id: Date.now().toString(),
+        text: messageValue,
+        timestamp: new Date(),
+        isSent: true,
+        senderName: "You",
+        senderAvatar:
+          user.avatar || "https://randomuser.me/api/portraits/men/2.jpg",
+      };
+
+      setMessages((prev) => [...prev, newMessage]);
+      setMessageValue("");
+      setAutoScroll(true);
+    } catch (error) {
+      console.error("Error sending message:", error);
+      setError("Failed to send message");
+    }
+  }, [messageValue, user, selectedUserId]);
+
+  const getConversations = useCallback(async () => {
+    try {
+      if (!user?.Id) return;
+
+      setLoading(true);
+      setError(null);
+
+      const url = new URL(
+        `${
+          import.meta.env.VITE_BACKEND_URL
+        }/api/auth/PrivateMessages/getConversation`
+      );
+      url.searchParams.append("userId", user.Id);
+
+      const response = await fetch(url.toString());
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
       const result = await response.json();
-      if (response.ok) {
-        const userData = result.InboxSearch.map((msg: Participants) => ({
-          Id: msg.Id,
-          content: msg.content,
-          sender: msg.sender,
-          participants: msg.participants,
-          status: msg.status,
-          createdAt: msg.createdAt,
-        }));
-        setParticipantsConvo(userData);
-        console.log("Updated convo:", userData); // Log here instead
-      } else {
-        console.log("No Message Found");
-      }
-    } catch (err) {
-      console.error("Error: ", err);
+      setConversations(result);
+    } catch (error) {
+      console.error("Error fetching conversations:", error);
+      setError("Failed to load conversations");
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  }, [user?.Id]);
 
   useEffect(() => {
-    if (user?.Id) {
-      Inbox(user.Id);
-    }
-  }, [user?.Id, Inbox]); // Remove participantsConvo from dependencies
+    getConversations();
+  }, [getConversations]);
+
+  // Handle sending messages
+  const handleMessageSend = () => {
+    sendMessage();
+  };
+
+  // Handle selecting a user from search results
+  const handleSearchSelect = (user: userSearch) => {
+    setSelectedUserName(user.name);
+    setSelectedUserAvatar(user.avatar);
+    setSelectedUserId(user.Id);
+
+    // Load initial message
+    setMessages([
+      {
+        id: "1",
+        text: `Hello there! This is the start of your conversation with ${user.name}`,
+        timestamp: new Date(),
+        isSent: false,
+        senderName: user.name,
+        senderAvatar: user.avatar,
+      },
+    ]);
+
+    setAutoScroll(true);
+    setSearchUsers([]);
+    setSearchValue("");
+  };
+
+  // Load messages for a selected conversation
+  const loadConversationMessages = useCallback(
+    async (conversationId: string) => {
+      try {
+        setLoading(true);
+        const response = await fetch(
+          `${
+            import.meta.env.VITE_BACKEND_URL
+          }/api/auth/PrivateMessages/getMessages?conversationId=${conversationId}`
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to load messages");
+        }
+
+        const messages = await response.json();
+        // Transform API messages to ChatMessage format
+        const formattedMessages = messages.map(
+          (msg: {
+            _id: string;
+            content: string;
+            createdAt: string;
+            sender: string;
+          }) => ({
+            id: msg._id,
+            text: msg.content,
+            timestamp: new Date(msg.createdAt),
+            isSent: msg.sender === user?.Id,
+            senderName: msg.sender === user?.Id ? "You" : selectedUserName,
+            senderAvatar:
+              msg.sender === user?.Id ? user.avatar : selectedUserAvatar,
+          })
+        );
+
+        setMessages(formattedMessages);
+      } catch (error) {
+        console.error("Error loading messages:", error);
+        setError("Failed to load messages");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [user?.Id, selectedUserName, selectedUserAvatar]
+  );
+
+  // Render conversation list
+  const renderConversationList = () => (
+    <div className="overflow-y-auto">
+      {conversations.map((conversation) => {
+        const otherParticipant = conversation.participants.find(
+          (p) => p._id !== user?.Id
+        );
+
+        if (!otherParticipant) return null;
+
+        return (
+          <div
+            key={conversation._id}
+            className="flex items-center p-3 hover:bg-gray-100 cursor-pointer"
+            onClick={() => {
+              setSelectedUserName(otherParticipant.name);
+              setSelectedUserAvatar(otherParticipant.avatar);
+              setSelectedUserId(otherParticipant._id);
+              loadConversationMessages(conversation._id);
+            }}
+          >
+            <img
+              src={otherParticipant.avatar}
+              alt={otherParticipant.name}
+              className="rounded-full w-10 h-10 mr-3"
+            />
+            <div className="flex-1 min-w-0">
+              <p className="font-medium truncate">{otherParticipant.name}</p>
+              <p className="text-sm text-gray-500 truncate">
+                {conversation.lastMessage?.content || "No messages yet"}
+              </p>
+            </div>
+            {conversation.lastMessage && (
+              <span className="text-xs text-gray-400">
+                {new Date(
+                  conversation.lastMessage.createdAt
+                ).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // Render search results
+  const renderSearchResults = () => (
+    <div className="overflow-y-auto">
+      {searchUsers.map((user) => (
+        <div
+          key={user.Id}
+          className="flex items-center p-3 hover:bg-gray-100 cursor-pointer"
+          onClick={() => handleSearchSelect(user)}
+        >
+          <img
+            src={user.avatar}
+            alt={user.name}
+            className="rounded-full w-10 h-10 mr-3"
+          />
+          <div>
+            <p className="font-medium">{user.name}</p>
+            <p className="text-sm text-gray-500">@{user.username}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  // Render individual message
+  const renderMessage = (msg: ChatMessage) => (
+    <div
+      className={`flex my-2 ${msg.isSent ? "justify-end" : "justify-start"}`}
+      key={msg.id}
+    >
+      {!msg.isSent && (
+        <img
+          src={msg.senderAvatar}
+          alt={msg.senderName}
+          className="rounded-full w-8 h-8 mr-2"
+        />
+      )}
+      <div className={`max-w-[70%]`}>
+        {!msg.isSent && (
+          <span className="text-xs text-gray-500 mb-1">{msg.senderName}</span>
+        )}
+        <div
+          className={`rounded-2xl p-3 break-words ${
+            msg.isSent ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-800"
+          }`}
+        >
+          {msg.text}
+        </div>
+        <div
+          className={`flex items-center mt-1 text-xs ${
+            msg.isSent ? "justify-end" : "justify-start"
+          }`}
+        >
+          <span className={msg.isSent ? "text-blue-300" : "text-gray-500"}>
+            {msg.timestamp.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="h-full flex flex-row flex-1">
       {/* Left sidebar */}
@@ -234,27 +395,37 @@ export default function ChatMessages() {
           <h3 className="mt-3 mb-3">Inbox</h3>
         </div>
 
-        <ContactList
-          users={searchOptions}
-          currentChatUser={selectedUserName}
-          onSelect={handleSearchSelect}
-          avatarSize="md"
-          conversations={participantsConvo} // Pass your conversation data here
-        />
+        {loading ? (
+          <div className="flex-1 flex items-center justify-center">
+            <p>Loading...</p>
+          </div>
+        ) : error ? (
+          <div className="flex-1 flex items-center justify-center">
+            <p className="text-red-500">{error}</p>
+          </div>
+        ) : searchValue ? (
+          renderSearchResults()
+        ) : (
+          renderConversationList()
+        )}
       </div>
 
       {/* Right chat area */}
       <div className="w-full flex flex-col shadow-2xl rounded-4xl">
-        <div className="my-2 p-2 border-b-3 flex items-center">
+        <div
+          className={`my-2 p-2 flex items-center ${
+            selectedUserAvatar ? "border-b-3" : ""
+          }`}
+        >
           <img
             src={
               selectedUserAvatar ||
-              "https://www.mediafire.com/view/rl67eqkychubthq"
+              "https://i0.wp.com/port2flavors.com/wp-content/uploads/2022/07/placeholder-614.png?fit=1200%2C800&ssl=1"
             }
-            alt={currentChatUser}
+            alt={selectedUserName}
             className="rounded-full w-8 h-8 mr-2"
           />
-          <h3>{selectedUserName}</h3>
+          <h3>{selectedUserName || "Select a conversation"}</h3>
         </div>
 
         <div
@@ -263,16 +434,25 @@ export default function ChatMessages() {
           className="no-scrollbar flex flex-col flex-[4] rounded-2xl p-4 overflow-y-auto"
           style={{ scrollBehavior: "smooth" }}
         >
-          {messages.map((msg) => (
-            <Message
-              key={msg.id}
-              text={msg.text}
-              timestamp={new Date(msg.timestamp)}
-              isSent={msg.sender === user?.Id}
-              senderName={msg.senderName}
-              senderAvatar={msg.senderAvatar}
-            />
-          ))}
+          {loading ? (
+            <div className="flex items-center justify-center h-full">
+              <p>Loading messages...</p>
+            </div>
+          ) : error ? (
+            <div className="flex items-center justify-center h-full">
+              <p className="text-red-500">{error}</p>
+            </div>
+          ) : messages.length > 0 ? (
+            messages.map(renderMessage)
+          ) : (
+            <div className="flex items-center justify-center h-full">
+              <p className="text-gray-500">
+                {selectedUserName
+                  ? "No messages yet"
+                  : "Select a conversation to start chatting"}
+              </p>
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
 
@@ -286,12 +466,18 @@ export default function ChatMessages() {
                 handleMessageSend();
               }
             }}
-            className="w-full h-full p-2 border-2 border-solid border-amber-600 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-amber-500"
-            placeholder="Type a message..."
+            disabled={!selectedUserName || loading}
+            className="w-full h-full p-2 border-2 border-solid border-amber-600 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:opacity-50"
+            placeholder={
+              selectedUserName
+                ? "Type a message..."
+                : "Select a conversation to chat"
+            }
           />
           <button
             onClick={handleMessageSend}
-            className="grid place-items-center h-12 w-12 bg-blue-500 rounded-2xl cursor-pointer hover:bg-blue-600 transition-colors"
+            disabled={!selectedUserName || !messageValue.trim() || loading}
+            className="grid place-items-center h-12 w-12 bg-blue-500 rounded-2xl cursor-pointer hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <IoIosSend className="text-2xl text-white" />
           </button>

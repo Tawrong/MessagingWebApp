@@ -40,7 +40,7 @@ const Message: FC<MessageProps> = ({
             isSent ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-800"
           }`}
         >
-          {text} {/* Changed from content to text */}
+          {text}
         </div>
 
         <div
