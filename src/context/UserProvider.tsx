@@ -12,6 +12,7 @@ interface User {
 interface UserContextType {
   user: User | null;
   setUser: (user: User | null) => void;
+  logout: () => void;
 }
 
 export const UserContext = createContext<UserContextType | undefined>(
@@ -30,6 +31,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       localStorage.removeItem("user");
     }
   };
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+  };
 
   // Load user from localStorage when the app initializes
   useEffect(() => {
@@ -40,7 +46,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   return (
-    <UserContext.Provider value={{ user, setUser }}>
+    <UserContext.Provider value={{ user, setUser, logout }}>
       {children}
     </UserContext.Provider>
   );

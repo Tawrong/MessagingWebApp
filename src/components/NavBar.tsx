@@ -10,18 +10,19 @@ import {
   FaSignOutAlt,
   FaUserEdit,
 } from "react-icons/fa";
+import { useUser } from "../context/useUser";
 
 function NavBar({ name, avatar }: { name: string; avatar: string }) {
   const [isMinimized, setIsMinimized] = useState(false);
   const navigate = useNavigate();
-
+  const { logout } = useUser();
   const toggleNavBar = () => {
     setIsMinimized(!isMinimized);
   };
 
   const handleLogout = () => {
-    // Add your logout logic here (e.g., clearing tokens, session storage, etc.)
     console.log("User logged out");
+    logout();
     navigate("/"); // Redirect to the login page
   };
   return (

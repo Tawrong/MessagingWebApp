@@ -2,7 +2,7 @@
 import { NextFunction, Request, Response } from "express";
 import User from "../models/Users";
 import jwt from "jsonwebtoken";
-import mongoose from "mongoose";
+import mongoose, { Types } from "mongoose";
 import Conversation from "../models/Conversation";
 import MessageSchema from "../models/MessageSchema";
 
@@ -212,6 +212,45 @@ export const getMessagesByConversation = async (req: Request, res: Response) => 
     res.status(200).json(messages);
   } catch (err) {
     res.status(500).json({ message: "Failed to load messages", error: err });
+  }
+};
+
+export const getConvo = async (req: Request, res: Response, next:NextFunction): Promise<void> => {
+  try {
+    // Get userId from query params instead of route params
+    const { userId } = req.query;
+    
+    if (!userId) {
+      res.status(400).json({ message: "userId is required" });
+    }
+
+    const userIdObj = new Types.ObjectId(userId.toString());
+    
+    const conversations = await Conversation.find({
+      participants: userIdObj,
+      conversationType: "PM"
+    })
+    .populate({
+      path: 'participants',
+      match: { _id: { $ne: userId } },
+      select: '_id name avatar username'
+    })
+    .select("_id lastMessage participants updatedAt")
+    .sort({ updatedAt: -1 })
+    .lean();
+
+    res.status(200).json({
+      success: true,
+      data: conversations // Return empty array if no conversations
+    });
+    
+  } catch (error) {
+    console.error(error);
+    if (error instanceof TypeError && error.message.includes('ObjectId')) {
+      res.status(400).json({ message: "Invalid user ID format" });
+      next(error);
+    }
+    res.status(500).json({ message: "Server error" });
   }
 };
 
