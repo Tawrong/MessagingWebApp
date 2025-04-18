@@ -7,6 +7,31 @@ export interface userSearch {
   email: string;
   lastMessage: string
 }
+export interface Messages {
+Id: string;
+content: string;
+createdAt: Date;
+sender: string;
+}
+
+
+
+export interface Conversation {
+  Id: string;
+  participants: {
+    _id: string;
+    name: string;
+    avatar: string;
+    username: string;
+  }[];
+  lastMessage: {
+    _id: string;
+    content: string;
+    messageType: string;
+    sender: string;
+  };
+  updatedAt: string;
+}
 
 export interface MessageType {
       Id: string

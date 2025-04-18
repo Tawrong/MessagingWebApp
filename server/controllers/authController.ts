@@ -202,46 +202,48 @@ export const sendMessage = async (req: Request, res: Response) => {
     session.endSession();
   }
 };
-// Get messages for a conversation
-export const getMessagesByConversation = async (req: Request, res: Response) => {
-  try {
-    const messages = await MessageSchema.find({ conversation: req.params.conversationId })
-      .populate("sender", "username") // optional: show sender info
-      .sort({ updatedAt: -1 });
 
-    res.status(200).json(messages);
-  } catch (err) {
-    res.status(500).json({ message: "Failed to load messages", error: err });
-  }
-};
 
-export const getConvo = async (req: Request, res: Response, next:NextFunction): Promise<void> => {
+export const getConvo = async (req: Request, res: Response, 
+  next:NextFunction): Promise<void> => {
   try {
     // Get userId from query params instead of route params
     const { userId } = req.query;
-    
     if (!userId) {
       res.status(400).json({ message: "userId is required" });
     }
+       if (!Types.ObjectId.isValid(userId as string)) {
+      res.status(400).json({ message: "Invalid conversationId" });
+      return;
+    }
 
-    const userIdObj = new Types.ObjectId(userId.toString());
-    
+    const userIdObj = new Types.ObjectId(userId as string);
     const conversations = await Conversation.find({
       participants: userIdObj,
       conversationType: "PM"
     })
     .populate({
-      path: 'participants',
-      match: { _id: { $ne: userId } },
-      select: '_id name avatar username'
+      path: 'lastMessage',
+      select: '_id conversation sender content messageType'
     })
+    .populate({
+      path: 'participants',
+      select: '_id name avatar username'
+})
     .select("_id lastMessage participants updatedAt")
     .sort({ updatedAt: -1 })
     .lean();
-
+    console.log(conversations);
     res.status(200).json({
       success: true,
-      data: conversations // Return empty array if no conversations
+      message: "Conversation",
+      data: conversations.map(c => ({
+        Id: c._id,
+        participants: c.participants,
+        conversationtype: c.conversationType,
+        lastMessage: c.lastMessage,
+        updatedAt: c.updatedAt,
+      }))
     });
     
   } catch (error) {
@@ -254,53 +256,45 @@ export const getConvo = async (req: Request, res: Response, next:NextFunction): 
   }
 };
 
-export const getConversations = async (
+export const getMessagebyId = async (
   req: Request,
   res: Response,
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { userId } = req.params;
+    const { conversationId } = req.query;
 
-    // Validate userId exists and is valid MongoDB ID
-    if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
-      res.status(400).json({ 
-        success: false,
-        message: "Invalid or missing user ID" 
-      });
+    if (!conversationId || typeof conversationId !== "string") {
+      res.status(400).json({ message: "conversationId is required" });
       return;
     }
 
-    const conversations = await Conversation.find({
-      participants: userId,
-      conversationType: "PM"
-    })
-    .populate({
-      path: 'participants',
-      match: { _id: { $ne: userId } },
-      select: '_id name avatar username'
-    })
-    .populate({
-      path: 'lastMessage',
-      select: 'content sender createdAt'
-    })
-    .sort({ updatedAt: -1 })
-    .lean();
+    if (!Types.ObjectId.isValid(conversationId)) {
+      res.status(400).json({ message: "Invalid conversationId" });
+      return;
+    }
 
-    // Filter out null participants and format response
-    const formattedConversations = conversations.map(conv => ({
-      ...conv,
-      participants: conv.participants.filter(p => p !== null),
-      lastMessage: conv.lastMessage || null
-    }));
+    const convoId = new Types.ObjectId(conversationId);
 
+    const message = await MessageSchema.find({
+      conversation: convoId,
+    })
+      .select("_id content sender createdAt")
+      .sort({_id: 1})
+      .lean();
+      
     res.status(200).json({
-      success: true,
-      data: formattedConversations
+      message: "Message",
+      data: message.map((m) => ({
+        Id: m._id,
+        content: m.content,
+        sender: m.sender,
+        createdAt: m.createdAt,
+      })),
     });
-
-  } catch (err) {
-    console.error("Error fetching conversations:", err);
-    next(err);
+    console.log("Conversation MEssages: ", message);
+  } catch (error) {
+    console.error(error);
+    next(error);
   }
 };

@@ -1,17 +1,8 @@
 import { FaSearch } from "react-icons/fa";
 import { IoIosSend } from "react-icons/io";
 import { useRef, useState, useEffect, useCallback } from "react";
-import { userSearch } from "../types";
+import { Conversation, Messages, userSearch } from "../types";
 import { useUser } from "../context/useUser";
-
-interface ChatMessage {
-  id: string;
-  text: string;
-  timestamp: Date;
-  isSent: boolean;
-  senderName: string;
-  senderAvatar: string;
-}
 
 interface SearchUsersResponse {
   users: userSearch[];
@@ -21,19 +12,51 @@ export default function ChatMessages() {
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const ConversationRef = useRef(false);
+  const messagesRef = useRef(true);
 
+  const useClickOutside = (
+    ref: React.RefObject<HTMLDivElement | null>,
+    callback: () => void
+  ) => {
+    useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+        if (ref.current && !ref.current.contains(event.target as Node)) {
+          callback();
+        }
+      };
+
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
+    }, [ref, callback]);
+  };
+
+  // Close search when clicking outside
+  useClickOutside(searchRef, () => {
+    if (isSearch) {
+      setisSearch(false);
+      setSearchValue(""); // Optional: clear search input
+      setSearchUsers([]); // Optional: clear search results
+    }
+  });
   // State
   const { user } = useUser();
-  const [isSent2, setIsSent2] = useState(false);
-  const [conversations, setConversations] = useState([]);
+  const [resultConverstaion, setresultConversation] = useState<Conversation[]>(
+    []
+  );
+  const [isSearch, setisSearch] = useState<boolean>(false);
   // const [showmessages, setshowmessages] = useState("");
+  const [selectedConversation, setSelectedConversation] = useState("");
   const [searchValue, setSearchValue] = useState("");
   const [searchUsers, setSearchUsers] = useState<userSearch[]>([]);
   const [messageValue, setMessageValue] = useState("");
   const [selectedUserAvatar, setSelectedUserAvatar] = useState("");
   const [selectedUserName, setSelectedUserName] = useState("");
   const [selectedUserId, setSelectedUserId] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<Messages[]>([]);
   const [autoScroll, setAutoScroll] = useState(true);
 
   // Auto-scroll to bottom when messages change
@@ -93,9 +116,39 @@ export default function ChatMessages() {
     }
   };
 
+  const getMessage = useCallback(async (query: string) => {
+    // Check before making the request
+    if (!query || query.length !== 24 || !/^[a-fA-F0-9]{24}$/.test(query)) {
+      console.warn("Invalid conversationId, skipping fetch:", query);
+      return;
+    }
+
+    try {
+      const url = new URL(
+        `${
+          import.meta.env.VITE_BACKEND_URL
+        }/api/auth/PrivateMessages/getMessage`
+      );
+      url.searchParams.append("conversationId", query);
+      const response = await fetch(url.toString());
+
+      if (!response.ok) {
+        const errorBody = await response.json();
+        console.warn("Backend rejected request:", errorBody.message);
+        return;
+      }
+
+      const result = await response.json();
+      console.log(result.data);
+      setMessages(result.data);
+    } catch (err) {
+      console.error("Fetch error:", err);
+    }
+  }, []);
+
   const sendMessage = useCallback(async () => {
     if (!messageValue.trim() || !user?.Id || !selectedUserId) return;
-    setIsSent2(false);
+
     try {
       const response = await fetch(
         `${
@@ -114,8 +167,8 @@ export default function ChatMessages() {
       );
       if (response.ok) {
         setMessageValue("");
+        // getMessage(selectedConversation);
         setAutoScroll(true);
-        setIsSent2(true);
       }
       const result = await response.json();
       console.log(result);
@@ -124,32 +177,50 @@ export default function ChatMessages() {
     }
   }, [messageValue, user?.Id, selectedUserId]);
 
-  const getConversations = useCallback(async () => {
-    try {
-      if (!user?.Id) return;
+  useEffect(() => {
+    if (user?.Id) {
+      if (ConversationRef.current === false) {
+        const getConversations = async () => {
+          try {
+            if (!user?.Id) return;
 
-      const url = new URL(
-        `${
-          import.meta.env.VITE_BACKEND_URL
-        }/api/auth/PrivateMessages/getConversation`
-      );
-      url.searchParams.append("userId", user.Id);
+            const url = new URL(
+              `${
+                import.meta.env.VITE_BACKEND_URL
+              }/api/auth/PrivateMessages/getConversation`
+            );
+            url.searchParams.append("userId", user.Id);
 
-      const response = await fetch(url.toString());
+            const response = await fetch(url.toString());
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Error: ${response.status}`);
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}));
+              throw new Error(errorData.message || `Error: ${response.status}`);
+            }
+
+            const result = await response.json();
+            console.log("Convo", result.data);
+            if (response.ok) {
+              return result.data;
+            }
+          } catch (error) {
+            console.error("Error fetching conversations:", error);
+          }
+        };
+
+        getConversations().then(setresultConversation);
       }
-
-      const result = await response.json();
-      console.log(result.data);
-      setConversations(result.data || []); // Use result.data instead of result.Conversation
-    } catch (error) {
-      console.error("Error fetching conversations:", error);
-      setConversations([]); // Reset to empty array on error
     }
+    return () => {
+      ConversationRef.current = true;
+    };
   }, [user?.Id]);
+
+  useEffect(() => {
+    if (selectedConversation && selectedConversation.trim().length === 24) {
+      getMessage(selectedConversation);
+    }
+  }, [selectedConversation, getMessage]);
 
   // Handle sending messages
   const handleMessageSend = () => {
@@ -170,79 +241,166 @@ export default function ChatMessages() {
   };
 
   // Handle selecting a user from search results
+  const handleInboxSelect = (c: Conversation) => {
+    const otherUser = c.participants.find((p) => p._id !== user?.Id);
+    setMessages([]);
+    setSelectedUserName(otherUser?.name || "Unknown User");
+    setSelectedUserAvatar(otherUser?.avatar || "");
+    setSelectedUserId(otherUser?._id || "");
+    setSelectedConversation(c.Id);
+    if (messagesRef.current === false) {
+      getMessage(selectedConversation);
+    }
+
+    // setMessages([
+    //   {
+    //     id: "1",
+    //     text: `Hello there! This is the start of your conversation with ${user.participants[1].name}`,
+    //     timestamp: new Date(),
+    //     isSent: false,
+    //     senderName: user.participants[1].name,
+    //     senderAvatar: user.participants[1].avatar,
+    //   },
+    // ]);
+    setAutoScroll(true);
+    setSearchUsers([]);
+    setSearchValue("");
+    return () => {
+      messagesRef.current = true;
+    };
+  };
+
   const handleSearchSelect = (user: userSearch) => {
     setSelectedUserName(user.name);
     setSelectedUserAvatar(user.avatar);
     setSelectedUserId(user.Id);
-    setMessages([
-      {
-        id: "1",
-        text: `Hello there! This is the start of your conversation with ${user.name}`,
-        timestamp: new Date(),
-        isSent: false,
-        senderName: user.name,
-        senderAvatar: user.avatar,
-      },
-    ]);
+    setMessages([]);
     setAutoScroll(true);
     setSearchUsers([]);
     setSearchValue("");
   };
 
   // Render contact list
-  const renderContactList = () => (
-    <div className="overflow-y-auto">
-      {searchUsers.map((user) => (
-        <div
-          key={user.Id}
-          className="flex items-center p-3 hover:bg-gray-100 cursor-pointer"
-          onClick={() => handleSearchSelect(user)}
-        >
-          <img
-            src={user.avatar}
-            alt={user.name}
-            className="rounded-full w-10 h-10 mr-3"
-          />
-          <div>
-            <p className="font-medium">{user.name}</p>
-            <p className="text-sm text-gray-500">@{user.username}</p>
-          </div>
+  const renderContactList = () => {
+    // Check if resultConversation is null or empty
+    if (!resultConverstaion || resultConverstaion.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full p-4 text-center text-gray-500">
+          <FaSearch className="text-2xl mb-2" />
+          <p>Search to start a conversation with someone</p>
         </div>
-      ))}
+      );
+    }
+
+    return (
+      <div className="overflow-y-auto">
+        {resultConverstaion.map((c: Conversation) => {
+          const otherUser = c.participants.find((p) => p._id !== user?.Id);
+
+          return (
+            <div
+              key={c.Id}
+              className="flex items-center p-3 hover:bg-gray-100 cursor-pointer"
+              onClick={() => handleInboxSelect(c)}
+            >
+              <img
+                src={otherUser?.avatar || "/default-avatar.png"}
+                alt={otherUser?.name || "User"}
+                className="rounded-full w-10 h-10 mr-3 object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "/default-avatar.png";
+                }}
+              />
+              <div className="min-w-0">
+                <p className="font-medium truncate">
+                  {otherUser?.name || "Unknown User"}
+                </p>
+                <p className="text-sm text-gray-500 truncate">
+                  @{otherUser?.username || "unknown"}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // Render contact list
+  const renderSearchList = () => (
+    <div className="overflow-y-auto">
+      {searchUsers && searchUsers.length > 0 ? (
+        searchUsers.map((user) => (
+          <div
+            key={user.Id}
+            className="flex items-center p-3 hover:bg-gray-100 cursor-pointer"
+            onClick={() => {
+              handleSearchSelect(user);
+              setisSearch((prev) => !prev);
+            }}
+          >
+            <img
+              src={user.avatar || "/default-avatar.png"} // Fallback for missing avatar
+              alt={user.name}
+              className="rounded-full w-10 h-10 mr-3 object-cover"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = "/default-avatar.png";
+              }}
+            />
+            <div className="min-w-0">
+              {" "}
+              {/* Prevent text overflow */}
+              <p className="font-medium truncate">{user.name}</p>
+              <p className="text-sm text-gray-500 truncate">@{user.username}</p>
+            </div>
+          </div>
+        ))
+      ) : (
+        <div className="p-4 text-center text-gray-500">No results found</div>
+      )}
     </div>
   );
 
   // Render individual message
-  const renderMessage = (msg: ChatMessage) => (
+  const renderMessage = (msg: Messages) => (
     <div
-      className={`flex my-2 ${msg.isSent ? "justify-end" : "justify-start"}`}
-      key={msg.id}
+      className={`flex my-2 ${
+        msg.sender === user?.Id ? "justify-end" : "justify-start"
+      }`}
+      key={msg.Id}
     >
-      {!msg.isSent && (
+      {!(msg.sender === user?.Id) && (
         <img
-          src={msg.senderAvatar}
-          alt={msg.senderName}
+          src={selectedUserAvatar}
+          alt={selectedUserName}
           className="rounded-full w-8 h-8 mr-2"
         />
       )}
       <div className={`max-w-[70%]`}>
-        {!msg.isSent && (
-          <span className="text-xs text-gray-500 mb-1">{msg.senderName}</span>
+        {!(msg.sender === user?.Id) && (
+          <span className="text-xs text-gray-500 mb-1">{selectedUserName}</span>
         )}
         <div
           className={`rounded-2xl p-3 break-words ${
-            msg.isSent ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-800"
+            msg.sender === user?.Id
+              ? "bg-blue-500 text-white"
+              : "bg-gray-200 text-gray-800"
           }`}
         >
-          {msg.text} {isSent2 ? "sent" : "Error"}
+          {msg.content}
         </div>
         <div
           className={`flex items-center mt-1 text-xs ${
-            msg.isSent ? "justify-end" : "justify-start"
+            msg.sender === user?.Id ? "justify-end" : "justify-start"
           }`}
         >
-          <span className={msg.isSent ? "text-blue-300" : "text-gray-500"}>
-            {msg.timestamp.toLocaleTimeString([], {
+          <span
+            className={
+              msg.sender === user?.Id ? "text-blue-300" : "text-gray-500"
+            }
+          >
+            {new Date(msg.createdAt).toLocaleTimeString([], {
+              day: "2-digit",
               hour: "2-digit",
               minute: "2-digit",
             })}
@@ -255,8 +413,10 @@ export default function ChatMessages() {
   return (
     <div className="h-full flex flex-row flex-1">
       {/* Left sidebar */}
-      <button onClick={getConversations}>HelloWorld</button>
-      <div className="flex flex-col h-full w-1/4 overflow-hidden shadow-2xl rounded-4xl">
+      <div
+        className="flex flex-col h-full w-1/4 overflow-hidden shadow-2xl rounded-4xl"
+        ref={searchRef}
+      >
         <div className="flex-shrink-0 p-4">
           <div className="flex flex-row space-x-2 relative">
             <label
@@ -268,6 +428,8 @@ export default function ChatMessages() {
             <input
               id="userSearchBar"
               type="text"
+              autoComplete="off"
+              onClick={() => setisSearch((prev) => !prev)}
               value={searchValue}
               onChange={handleSearchChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -276,7 +438,7 @@ export default function ChatMessages() {
           </div>
           <h3 className="mt-3 mb-3">Inbox</h3>
         </div>
-        {renderContactList()}
+        {isSearch ? renderSearchList() : renderContactList()}
       </div>
 
       {/* Right chat area */}
@@ -304,7 +466,7 @@ export default function ChatMessages() {
           style={{ scrollBehavior: "smooth" }}
         >
           {messages.length > 0 ? (
-            messages.map(renderMessage)
+            messages.map((msg) => renderMessage(msg))
           ) : (
             <div className="flex items-center justify-center h-full">
               <p className="text-gray-500">
