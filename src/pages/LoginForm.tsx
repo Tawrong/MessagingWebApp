@@ -5,14 +5,12 @@ function LoginForm() {
   const [isLogin, setIsLogin] = useState(true); // Toggle between login and signup
   const navigate = useNavigate();
   const { setUser } = useUser();
-  const apiUrl = import.meta.env.VITE_BACKEND_URL; // Use the environment variable for the backend URL
   const handleToggle = () => {
     setIsLogin(!isLogin);
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    console.log("Backend URL:", apiUrl); // Log the backend URL for debugging
     const formData = new FormData(event.target as HTMLFormElement);
     const data = Object.fromEntries(formData.entries());
 
@@ -41,12 +39,9 @@ function LoginForm() {
         }
 
         const result = await response.json();
-        console.log("Login successful:", result);
 
         // Set user data in context
         setUser(result.user);
-        console.log("User data set in context:", result.user);
-        // Navigate to the private chats page
         navigate("/PrivateChats");
       } else {
         // Handle signup logic
@@ -76,9 +71,7 @@ function LoginForm() {
         }
 
         const result = await response.json();
-        console.log("Signup successful:", result);
         setUser(result.user); // Set user data in context
-        console.log("User data set in context:", result.user);
         navigate("/PrivateChats");
       }
     } catch (error) {
@@ -89,7 +82,6 @@ function LoginForm() {
         alert("An unknown error occurred.");
       }
     }
-    console.log("Form data submitted:", data); // Log the form data for debugging
   };
 
   return (

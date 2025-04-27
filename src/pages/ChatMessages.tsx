@@ -3,7 +3,7 @@ import { IoIosSend } from "react-icons/io";
 import { useRef, useState, useEffect, useCallback } from "react";
 import { Conversation, Messages, userSearch } from "../types";
 import { useUser } from "../context/useUser";
-
+import { io } from "socket.io-client";
 interface SearchUsersResponse {
   users: userSearch[];
 }
@@ -15,6 +15,7 @@ export default function ChatMessages() {
   const searchRef = useRef<HTMLDivElement>(null);
   const ConversationRef = useRef(false);
   const messagesRef = useRef(true);
+  const [showmessages, setshowmessages] = useState<boolean>(false);
 
   const useClickOutside = (
     ref: React.RefObject<HTMLDivElement | null>,
@@ -139,7 +140,6 @@ export default function ChatMessages() {
       }
 
       const result = await response.json();
-      console.log(result.data);
       setMessages(result.data);
     } catch (err) {
       console.error("Fetch error:", err);
@@ -199,8 +199,8 @@ export default function ChatMessages() {
             }
 
             const result = await response.json();
-            console.log("Convo", result.data);
             if (response.ok) {
+              console.log(result.data);
               return result.data;
             }
           } catch (error) {
@@ -222,6 +222,97 @@ export default function ChatMessages() {
     }
   }, [selectedConversation, getMessage]);
 
+  useEffect(() => {
+    // Initialize socket connection
+    const socket = io("http://localhost:5000", {
+      withCredentials: true,
+      autoConnect: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      transports: ["websocket", "polling"],
+    });
+
+    // Debug connection handlers
+    const onConnect = () => {
+      console.log("Connected:", socket.id);
+      if (user?.Id !== null) {
+        socket.emit("test", { userId: user?.Id });
+      }
+    };
+
+    const test = (data: []) => {
+      console.log(data);
+    };
+
+    const onDisconnect = (reason: string) => {
+      console.log("Disconnected:", reason);
+    };
+
+    const onConnectError = (err: Error) => {
+      console.error("Connection error:", err);
+    };
+
+    const updatedInbox = (updatedConvo: Conversation) => {
+      console.log("updated-inbox", updatedConvo);
+
+      setresultConversation((prev) => {
+        // Check if conversation already exists
+        const existingIndex = prev.findIndex((c) => c.Id === updatedConvo.Id);
+
+        // Create updated conversations array
+        const updatedConversations =
+          existingIndex >= 0
+            ? prev.map((conv, index) =>
+                index === existingIndex ? updatedConvo : conv
+              )
+            : [...prev, updatedConvo];
+
+        // Sort by updatedAt (newest first) and lastMessage time
+        return updatedConversations.sort((a, b) => {
+          // Get most recent activity time (updatedAt or lastMessage time)
+          const aTime = Math.max(
+            new Date(a.updatedAt).getTime(),
+            a.lastMessage ? new Date(a.updatedAt).getTime() : 0
+          );
+
+          const bTime = Math.max(
+            new Date(b.updatedAt).getTime(),
+            b.lastMessage ? new Date(b.updatedAt).getTime() : 0
+          );
+
+          return bTime - aTime; // Descending order (newest first)
+        });
+      });
+    };
+
+    const onNewMessage = (msg: Messages) => {
+      setMessages((prev) => [...prev, msg]);
+    };
+
+    // Set up listeners
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    socket.on("connect_error", onConnectError);
+    socket.on("new-message", onNewMessage);
+    socket.on("updated-inbox", updatedInbox);
+    socket.on("test-data-result", test);
+
+    return () => {
+      // Clean up all listeners
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+      socket.off("connect_error", onConnectError);
+      socket.off("new-message", onNewMessage);
+      socket.off("updated-inbox", updatedInbox);
+      socket.off("test-data-result", test);
+
+      // Only disconnect if socket is connected
+      if (socket.connected) {
+        socket.disconnect();
+      }
+    };
+  }, [user?.Id]);
+
   // Handle sending messages
   const handleMessageSend = () => {
     // if (messageValue.trim() && selectedUserName) {
@@ -242,6 +333,7 @@ export default function ChatMessages() {
 
   // Handle selecting a user from search results
   const handleInboxSelect = (c: Conversation) => {
+    setshowmessages(true);
     const otherUser = c.participants.find((p) => p._id !== user?.Id);
     setMessages([]);
     setSelectedUserName(otherUser?.name || "Unknown User");
@@ -274,6 +366,7 @@ export default function ChatMessages() {
     setSelectedUserName(user.name);
     setSelectedUserAvatar(user.avatar);
     setSelectedUserId(user.Id);
+    setshowmessages(true);
     setMessages([]);
     setAutoScroll(true);
     setSearchUsers([]);
@@ -465,7 +558,7 @@ export default function ChatMessages() {
           className="no-scrollbar flex flex-col flex-[4] rounded-2xl p-4 overflow-y-auto "
           style={{ scrollBehavior: "smooth" }}
         >
-          {messages.length > 0 ? (
+          {messages.length > 0 && showmessages ? (
             messages.map((msg) => renderMessage(msg))
           ) : (
             <div className="flex items-center justify-center h-full">

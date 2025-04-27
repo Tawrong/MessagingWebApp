@@ -29,9 +29,7 @@ export const registerUser = async (req: Request, res: Response, next: NextFuncti
     });
 
     // Save the user to the database
-    await newUser.save().then(() => {
-      console.log("User registered successfully:", newUser);
-  });
+    await newUser.save();
     res.status(201).json({ message: "User registered successfully",
       user:{
         Id: newUser._id,
@@ -233,7 +231,6 @@ export const getConvo = async (req: Request, res: Response,
     .select("_id lastMessage participants updatedAt")
     .sort({ updatedAt: -1 })
     .lean();
-    console.log(conversations);
     res.status(200).json({
       success: true,
       message: "Conversation",
@@ -292,7 +289,6 @@ export const getMessagebyId = async (
         createdAt: m.createdAt,
       })),
     });
-    console.log("Conversation MEssages: ", message);
   } catch (error) {
     console.error(error);
     next(error);
