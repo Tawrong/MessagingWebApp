@@ -12,6 +12,7 @@ Id: string;
 content: string;
 createdAt: Date;
 sender: string;
+conversation: string;
 }
 
 

@@ -77,6 +77,7 @@ conversationChangeStream.on('change', async (change) => {
 
       // Populate participants and lastMessage
       const populatedConvo = await Conversation.findById(conversation._id)
+
         .populate({
           path: 'participants',
           select: '_id username name email avatar status', // Include the fields you need

@@ -170,8 +170,6 @@ export default function ChatMessages() {
         // getMessage(selectedConversation);
         setAutoScroll(true);
       }
-      const result = await response.json();
-      console.log(result);
     } catch (error) {
       console.error(error);
     }
@@ -253,8 +251,6 @@ export default function ChatMessages() {
     };
 
     const updatedInbox = (updatedConvo: Conversation) => {
-      console.log("updated-inbox", updatedConvo);
-
       setresultConversation((prev) => {
         // Check if conversation already exists
         const existingIndex = prev.findIndex((c) => c.Id === updatedConvo.Id);
@@ -286,7 +282,9 @@ export default function ChatMessages() {
     };
 
     const onNewMessage = (msg: Messages) => {
-      setMessages((prev) => [...prev, msg]);
+      if (selectedConversation === msg.conversation) {
+        setMessages((prev) => [...prev, msg]);
+      }
     };
 
     // Set up listeners
@@ -311,7 +309,7 @@ export default function ChatMessages() {
         socket.disconnect();
       }
     };
-  }, [user?.Id]);
+  }, [user?.Id, selectedConversation]);
 
   // Handle sending messages
   const handleMessageSend = () => {
